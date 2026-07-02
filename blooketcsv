@@ -57,6 +57,7 @@ def output_csv_file_to_stream(stream, data: list[dict]):
         question = datum["question"]
         correct_answer_indexes = datum["correct_answer_indexes"]
         answers = datum["answers"]
+        time = datum.get("time", 30)
 
         # Print question index, starts with 1
         print(question_index, end=",", file=stream)
@@ -68,7 +69,7 @@ def output_csv_file_to_stream(stream, data: list[dict]):
         print(','.join(answers), end=",", file=stream)
 
         # Print time-to-answer
-        print("30", end="", file=stream)
+        print(time, end="", file=stream)
 
         correct_answers = ','.join(correct_answer_indexes)
         if len(correct_answer_indexes) > 1:
@@ -91,6 +92,8 @@ def parse_block(block_content: str, block_index: int):
                 block_data["answers"] = [x.strip() for x in v.split(",") if x]
             case "correct_answers":
                 block_data["correct_answers"] = [x.strip() for x in v.split(",") if x]
+            case "time":
+                block_data["time"] = v
 
     # Rudimentary validations happen here
     if "question" not in block_data:
@@ -113,6 +116,11 @@ def parse_block(block_content: str, block_index: int):
             "Parse", 
             f"block {block_index + 1} has insufficient amount of answers: {len(block_data["answers"])}/4"
         )
+    if "time" in block_data and not block_data["time"].isnumeric():
+        error(
+            "Parse", 
+            f"block {block_index + 1} has \"time\" field unable to be parsed as a number"
+        )
     if len(block_data["answers"]) > 4:
         error(
             "Parse", 
@@ -133,8 +141,7 @@ def parse_block(block_content: str, block_index: int):
         )
 
     return {
-        "question": question,
-        "answers": answers,
+        **block_data,
         "correct_answer_indexes": correct_answer_indexes,
     }
 
