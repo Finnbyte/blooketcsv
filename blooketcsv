@@ -8,12 +8,12 @@ def shift(arr: list):
     return value
 
 def parse_args(argv: list):
-    arg_aliases = { "--output": "-o" }
+    ARG_ALIASES = { "--output": "-o" }
     result = {}
     while len(argv) > 0:
         item = shift(argv)
         if item.startswith("-"):
-            result[arg_aliases.get(item, item)] = shift(argv)
+            result[ARG_ALIASES.get(item, item)] = shift(argv)
     return result
 
 def usagehelp(executable_name: str, exit_code = 0):
@@ -28,11 +28,10 @@ def usagehelp(executable_name: str, exit_code = 0):
     print("question: What is 2 + 2?")
     print("answers: 4, Four, 3, Three")
     print("correct_answers: 4, Four")
-    return sys.exit(exit_code)
+    sys.exit(exit_code)
 
 def error(kind: str, *args):
-    print(f"{kind}Error:", end=" ")
-    print(*args)
+    print(f"{kind}Error:", *args)
     sys.exit(1)
 
 def output_csv_file_to_stream(stream, data: list[dict]):
@@ -142,16 +141,19 @@ def main():
     input_file = shift(sys.argv)
     parsed_args = parse_args(sys.argv)
 
-    with open(input_file) as file:
-        content = file.read()
+    try:
+        with open(input_file) as file:
+            content = file.read()
 
-        blocks = content.split("\n\n")
+            blocks = content.split("\n\n")
 
-        if len(blocks) < 1:
-            error("Parse", "No blocks defined in input file. Use --help to get started")
-        for block_index, block in enumerate(blocks):
-            parsed_block_data = parse_block(block, block_index)
-            data.append(parsed_block_data)
+            if len(blocks) < 1:
+                error("Parse", "No blocks defined in input file. Use --help to get started")
+            for block_index, block in enumerate(blocks):
+                parsed_block_data = parse_block(block, block_index)
+                data.append(parsed_block_data)
+    except FileNotFoundError:
+        error("FileNotFound", "Could not find input file")
 
     if "-o" in parsed_args:
         file = open(parsed_args["-o"], "w")
