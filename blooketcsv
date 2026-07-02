@@ -8,13 +8,20 @@ def shift(arr: list):
     return value
 
 def parse_args(argv: list):
-    ARG_ALIASES = { "--output": "-o" }
-    result = {}
+    ARG_ALIASES = { "--output": "-o", "--help": "-h" }
+    values = {}
+    positionals = []
+    executable_name = shift(argv)
     while len(argv) > 0:
         item = shift(argv)
         if item.startswith("-"):
-            result[ARG_ALIASES.get(item, item)] = shift(argv)
-    return result
+            flag = ARG_ALIASES.get(item, item)
+            flag_value = None if not argv else shift(argv)
+            values[flag] = flag_value
+        else:
+            positionals.append(item)
+
+    return (executable_name, values, positionals)
 
 def usagehelp(executable_name: str, exit_code = 0):
     print(f"usage: {executable_name} <path to input file>")
@@ -94,7 +101,7 @@ def parse_block(block_content: str, block_index: int):
     if "answers" not in block_data:
         error(
             "Parse", 
-            f"block {block_index + 1} doesn't contain \"question\" field."
+            f"block {block_index + 1} doesn't contain \"answers\" field."
         )
     if "correct_answers" not in block_data:
         error(
@@ -132,20 +139,22 @@ def parse_block(block_content: str, block_index: int):
     }
 
 def main():
-    executable_name = shift(sys.argv)
-    if len(sys.argv) == 0:
+    executable_name, values, positionals = parse_args(sys.argv)
+
+    if "-h" in values:
+        usagehelp(executable_name)
+
+    if not positionals:
         usagehelp(executable_name, 1)
 
     data = []
 
-    input_file = shift(sys.argv)
-    parsed_args = parse_args(sys.argv)
-
     try:
+        input_file = positionals[0]
         with open(input_file) as file:
             content = file.read()
 
-            blocks = content.split("\n\n")
+            blocks = [x.strip() for x in content.split("\n\n") if x]
 
             if len(blocks) < 1:
                 error("Parse", "No blocks defined in input file. Use --help to get started")
@@ -155,8 +164,8 @@ def main():
     except FileNotFoundError:
         error("FileNotFound", "Could not find input file")
 
-    if "-o" in parsed_args:
-        file = open(parsed_args["-o"], "w")
+    if "-o" in values:
+        file = open(values["-o"], "w")
         output_csv_file_to_stream(file, data)
     else:
         output_csv_file_to_stream(sys.stdout, data)
