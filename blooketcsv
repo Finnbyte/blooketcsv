@@ -1,0 +1,163 @@
+#!/usr/bin/python
+
+import os
+import sys
+
+def shift(arr: list):
+    value = arr.pop(0)
+    return value
+
+def parse_args(argv: list):
+    arg_aliases = { "--output": "-o" }
+    result = {}
+    while len(argv) > 0:
+        item = shift(argv)
+        if item.startswith("-"):
+            result[arg_aliases.get(item, item)] = shift(argv)
+    return result
+
+def usagehelp(executable_name: str, exit_code = 0):
+    print(f"usage: {executable_name} <path to input file>")
+    print()
+    print(f"Input file example:")
+    print("---")
+    print("question: What is 1 + 1?")
+    print("answers:  3, 2, 1, 4")
+    print("correct_answers: 1")
+    print("")
+    print("question: What is 2 + 2?")
+    print("answers: 4, Four, 3, Three")
+    print("correct_answers: 4, Four")
+    return sys.exit(exit_code)
+
+def error(kind: str, *args):
+    print(f"{kind}Error:", end=" ")
+    print(*args)
+    sys.exit(1)
+
+def output_csv_file_to_stream(stream, data: list[dict]):
+    """Outputs the CSV file into stdout."""
+    # Below 7 print statements are required for Blooket to parse correctly
+    print("\"Blooket", file=stream)
+    print("Import Template\",,,,,,,", file=stream)
+    print("Question #,Question Text,Answer 1,Answer 2,\"Answer 3", file=stream)
+    print("(Optional)\",\"Answer 4", file=stream)
+    print("(Optional)\",\"Time Limit (sec)", file=stream)
+    print("(Max: 300 seconds)\",\"Correct Answer(s)", file=stream)
+    print("(Only include Answer #)\"", file=stream)
+
+    for index, datum in enumerate(data):
+        question_index = index + 1
+        question = datum["question"]
+        correct_answer_indexes = datum["correct_answer_indexes"]
+        answers = datum["answers"]
+
+        # Print question index, starts with 1
+        print(question_index, end=",", file=stream)
+
+        # Print question itself
+        print(question, end=",", file=stream)
+
+        # Print answers
+        print(','.join(answers), end=",", file=stream)
+
+        # Print time-to-answer
+        print("30", end="", file=stream)
+
+        correct_answers = ','.join(correct_answer_indexes)
+        if len(correct_answer_indexes) > 1:
+            # Quote indexes if multiple. Otherwise Blooket fails to parse the line due to excessive commas not in quotes
+            print(f",\"{correct_answers}\"", file=stream)
+        else:
+            print(f",{correct_answers}", file=stream)
+
+
+def parse_block(block_content: str, block_index: int):
+    """ Attempts to parse a block. A block is a visually separated chunk inside input file, and it contains the field for question, answers and correct_answers.
+    """
+    block_data = {}
+    key_value_pairs = block_content.strip().split("\n")
+    for k, v in [x.strip().split(": ") for x in key_value_pairs]:
+        match k:
+            case "question":
+                block_data["question"] = v
+            case "answers":
+                block_data["answers"] = [x.strip() for x in v.split(",") if x]
+            case "correct_answers":
+                block_data["correct_answers"] = [x.strip() for x in v.split(",") if x]
+
+    # Rudimentary validations happen here
+    if "question" not in block_data:
+        error(
+            "Parse", 
+            f"block {block_index + 1} doesn't contain \"question\" field."
+        )
+    if "answers" not in block_data:
+        error(
+            "Parse", 
+            f"block {block_index + 1} doesn't contain \"question\" field."
+        )
+    if "correct_answers" not in block_data:
+        error(
+            "Parse", 
+            f"block {block_index + 1} doesn't contain \"correct_answers\" field."
+        )
+    if len(block_data["answers"]) < 4:
+        error(
+            "Parse", 
+            f"block {block_index + 1} has insufficient amount of answers: {len(block_data["answers"])}/4"
+        )
+    if len(block_data["answers"]) > 4:
+        error(
+            "Parse", 
+            f"block {block_index + 1} has too many answers: {len(block_data["answers"])}/4"
+        )
+
+    question = block_data["question"]
+    answers = block_data["answers"]
+    correct_answer_indexes = []
+    for index, answer in enumerate(answers):
+        if answer in block_data["correct_answers"]:
+            correct_answer_indexes.append(str(index + 1))
+
+    if len(correct_answer_indexes) < 1:
+        error(
+            "Parse", 
+            f"block {block_index + 1} contains no valid correct answers. Ensure \"correct_answers\" matches at least one item in \"answers\". Read usage help for further help."
+        )
+
+    return {
+        "question": question,
+        "answers": answers,
+        "correct_answer_indexes": correct_answer_indexes,
+    }
+
+def main():
+    executable_name = shift(sys.argv)
+    if len(sys.argv) == 0:
+        usagehelp(executable_name, 1)
+
+    data = []
+
+    input_file = shift(sys.argv)
+    parsed_args = parse_args(sys.argv)
+
+    with open(input_file) as file:
+        content = file.read()
+
+        blocks = content.split("\n\n")
+
+        if len(blocks) < 1:
+            error("Parse", "No blocks defined in input file. Use --help to get started")
+        for block_index, block in enumerate(blocks):
+            parsed_block_data = parse_block(block, block_index)
+            data.append(parsed_block_data)
+
+    if "-o" in parsed_args:
+        file = open(parsed_args["-o"], "w")
+        output_csv_file_to_stream(file, data)
+    else:
+        output_csv_file_to_stream(sys.stdout, data)
+
+if __name__ == "__main__":
+    main()
