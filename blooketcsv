@@ -34,6 +34,7 @@ def usagehelp(executable_name: str, exit_code = 0):
     print("")
     print("question: What is 2 + 2?")
     print("answers: 4, Four, 3, Three")
+    print("time: 20")
     print("correct_answers: 4, Four")
     sys.exit(exit_code)
 
